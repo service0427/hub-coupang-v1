@@ -41,10 +41,8 @@
         "code": "PROD123456"
     },
     "proxy": {
-        "ip": "112.161.54.7",
-        "port": 10001,
+        "url": "socks5://112.161.54.7:10001",
         "external_ip": "203.123.45.67",
-        "type": "socks5",
         "use_count": 5
     },
     "settings": {

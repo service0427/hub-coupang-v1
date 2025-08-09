@@ -148,10 +148,8 @@ router.get('/', async (req, res) => {
                 code: workSlot.code
             },
             proxy: {
-                ip: proxy.server_ip,
-                port: proxy.port,
+                url: `socks5://${proxy.server_ip}:${proxy.port}`,
                 external_ip: proxy.external_ip,
-                type: 'socks5',
                 use_count: proxy.use_count + 1
             },
             settings: {
