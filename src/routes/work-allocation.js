@@ -3,12 +3,12 @@ const router = express.Router();
 const { getPool } = require('../db/pool');
 const crypto = require('crypto');
 
-// POST /api/allocate-work - 작업 할당 요청 (새 형식)
-router.post('/', async (req, res) => {
+// GET /api/allocate-work - 작업 할당 요청 (자동 폴더 할당)
+router.get('/', async (req, res) => {
     const pool = getPool();
     const client = await pool.connect();
     
-    // 클라이언트 정보 - IP는 자동 감지
+    // 클라이언트 IP 자동 감지
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || 
                      req.connection.remoteAddress || 
                      req.socket.remoteAddress || 
@@ -17,22 +17,57 @@ router.post('/', async (req, res) => {
     // IPv6 형식 제거
     const cleanIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
     
-    const { instance_number: instanceNumber = 1, user_folder_number: userFolder = 1 } = req.body;
+    // 인스턴스 번호 (쿼리 파라미터)
+    const instanceNumber = parseInt(req.query.instance || req.query.instance_number || 1);
     
     try {
         await client.query('BEGIN');
         
-        // 1. 클라이언트 자동 등록/업데이트
-        await client.query(`
-            INSERT INTO v1_hub_clients (client_ip, last_seen_at, total_requests)
-            VALUES ($1, CURRENT_TIMESTAMP, 1)
-            ON CONFLICT (client_ip) 
-            DO UPDATE SET 
-                last_seen_at = CURRENT_TIMESTAMP,
-                total_requests = v1_hub_clients.total_requests + 1,
-                observed_max_instance = GREATEST(v1_hub_clients.observed_max_instance, $2),
-                observed_max_user_folder = GREATEST(v1_hub_clients.observed_max_user_folder, $3)
-        `, [cleanIp, instanceNumber, userFolder]);
+        // 1. 클라이언트 정보 조회 + 락 (동시성 방지)
+        const clientResult = await client.query(`
+            SELECT * FROM v1_hub_clients 
+            WHERE client_ip = $1 
+            FOR UPDATE
+        `, [cleanIp]);
+        
+        let clientData;
+        let userFolder;
+        
+        if (clientResult.rows.length === 0) {
+            // 신규 클라이언트 - 등록과 동시에 첫 폴더 할당
+            userFolder = 1;
+            const insertResult = await client.query(`
+                INSERT INTO v1_hub_clients (
+                    client_ip, first_seen_at, last_seen_at, 
+                    last_assigned_folders, max_folders, total_requests
+                ) VALUES (
+                    $1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                    $2, 30, 1
+                ) RETURNING *
+            `, [cleanIp, JSON.stringify({[instanceNumber]: userFolder})]);
+            clientData = insertResult.rows[0];
+        } else {
+            // 기존 클라이언트
+            clientData = clientResult.rows[0];
+            
+            // 폴더 자동 할당 (롤링)
+            const lastFolders = clientData.last_assigned_folders || {};
+            const lastFolder = lastFolders[instanceNumber] || 0;
+            const maxFolders = clientData.max_folders || 30;
+            userFolder = (lastFolder % maxFolders) + 1;
+            
+            // 즉시 업데이트 (락 상태에서)
+            lastFolders[instanceNumber] = userFolder;
+            await client.query(`
+                UPDATE v1_hub_clients 
+                SET last_assigned_folders = $1,
+                    last_seen_at = CURRENT_TIMESTAMP,
+                    total_requests = total_requests + 1,
+                    observed_max_instance = GREATEST(observed_max_instance, $2),
+                    observed_max_user_folder = GREATEST(observed_max_user_folder, $3)
+                WHERE client_ip = $4
+            `, [JSON.stringify(lastFolders), instanceNumber, userFolder, cleanIp]);
+        }
         
         // 2. 할당 가능한 작업 찾기 (오늘 날짜, 목표 미달성)
         const workResult = await client.query(`
@@ -70,7 +105,9 @@ router.post('/', async (req, res) => {
             return res.status(404).json({
                 success: false,
                 error: 'NO_WORK_AVAILABLE',
-                message: '현재 할당 가능한 작업이 없습니다'
+                message: '현재 할당 가능한 작업이 없습니다',
+                instance: instanceNumber,
+                folder: userFolder
             });
         }
         
@@ -150,12 +187,14 @@ router.post('/', async (req, res) => {
         
         await client.query('COMMIT');
         
-        console.log(`✅ 작업 할당: ${allocationKey} | 키워드: ${workSlot.keyword} | 프록시: ${proxy.server_ip}:${proxy.port} (${proxy.use_count + 1}/20)`);
+        console.log(`✅ 작업 할당: ${allocationKey} | Instance: ${instanceNumber} | Folder: ${userFolder} | 키워드: ${workSlot.keyword} | 프록시: ${proxy.server_ip}:${proxy.port}`);
         
-        // 응답 (새 형식)
+        // 응답
         res.json({
             success: true,
             allocation_key: allocationKey,
+            instance: instanceNumber,
+            folder: userFolder,  // 서버가 자동 할당한 폴더
             work: {
                 keyword: workSlot.keyword,
                 code: workSlot.code
@@ -189,6 +228,14 @@ router.post('/', async (req, res) => {
     }
 });
 
+// POST /api/allocate-work - 기존 POST 방식도 지원 (하위 호환성)
+router.post('/', async (req, res) => {
+    // GET 방식으로 리다이렉트
+    const instance = req.body.instance_number || 1;
+    req.query = { instance };
+    return router.handle(req, res);
+});
+
 // GET /api/allocate-work/:allocation_key - 할당 상태 조회
 router.get('/:allocation_key', async (req, res) => {
     const pool = getPool();
@@ -220,6 +267,8 @@ router.get('/:allocation_key', async (req, res) => {
             allocation: {
                 key: allocation.allocation_key,
                 status: allocation.status,
+                instance: allocation.reported_instance,
+                folder: allocation.reported_user_folder,
                 allocated_at: allocation.allocated_at,
                 expires_at: allocation.expires_at,
                 completed_at: allocation.completed_at,

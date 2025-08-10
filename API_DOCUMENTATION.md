@@ -19,25 +19,21 @@
 
 ## 1. 작업 할당 API
 
-### POST `/api/allocate-work`
-작업(키워드+프록시) 할당 요청
+### GET `/api/allocate-work`
+작업(키워드+프록시) 할당 요청 - 서버가 자동으로 폴더 할당
 
 **curl 예제:**
 ```bash
-curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
-  -H "Content-Type: application/json" \
-  -d '{
-    "instance_number": 1,
-    "user_folder_number": 1
-  }'
+# 기본 요청 (instance=1)
+curl "http://mkt.techb.kr:3001/api/allocate-work"
+
+# 특정 인스턴스 지정
+curl "http://mkt.techb.kr:3001/api/allocate-work?instance=1"
 ```
 
-**Request Body:**
-```json
-{
-    "instance_number": 1,      // 선택적, 기본값: 1
-    "user_folder_number": 1     // 선택적, 기본값: 1
-}
+**Query Parameters:**
+```
+instance: 인스턴스 번호 (선택적, 기본값: 1)
 ```
 
 **Response (200 OK):**
@@ -45,6 +41,8 @@ curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
 {
     "success": true,
     "allocation_key": "WA-20250809-a1b2c3d4e5f6",
+    "instance": 1,
+    "folder": 3,  // 서버가 자동 할당한 폴더 번호 (1~30 순환)
     "work": {
         "keyword": "무선이어폰",
         "code": "PROD123456"
@@ -546,18 +544,13 @@ curl -X DELETE http://mkt.techb.kr:3001/webhook/keywords/delete \
 
 ### 1. 작업 할당 받기
 ```bash
-# 최소 요청 (모든 파라미터 기본값)
-curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
-  -H "Content-Type: application/json" \
-  -d '{}'
+# 기본 요청 (instance=1)
+curl "http://mkt.techb.kr:3001/api/allocate-work"
 
-# 또는 instance와 user_folder 지정
-curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
-  -H "Content-Type: application/json" \
-  -d '{
-    "instance_number": 1,
-    "user_folder_number": 1
-  }'
+# 특정 인스턴스 지정
+curl "http://mkt.techb.kr:3001/api/allocate-work?instance=2"
+
+# 서버가 자동으로 folder를 할당 (1→2→...→30→1 순환)
 ```
 
 ### 2. 작업 수행 (클라이언트에서 처리)
