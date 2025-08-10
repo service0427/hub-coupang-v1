@@ -22,6 +22,17 @@
 ### POST `/api/allocate`
 작업(키워드+프록시) 할당 요청
 
+**curl 예제:**
+```bash
+curl -X POST http://localhost:3001/api/allocate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_ip": "192.168.1.100",
+    "instance_number": 1,
+    "user_folder_number": 1
+  }'
+```
+
 **Request Body:**
 ```json
 {
@@ -71,6 +82,29 @@
 
 ### POST `/api/submit-result`
 작업 완료 결과 제출
+
+**curl 예제:**
+```bash
+curl -X POST http://localhost:3001/api/submit-result \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allocation_key": "WA-20250809-a1b2c3d4e5f6",
+    "status": "completed",
+    "execution": {
+        "started_at": "2025-08-09T10:13:30Z",
+        "completed_at": "2025-08-09T10:13:39Z",
+        "execution_time_ms": 9000,
+        "instance_number": 1,
+        "user_folder": 1
+    },
+    "result": {
+        "status": "success",
+        "status_code": 200,
+        "current_page": 1,
+        "products_found": 60
+    }
+  }'
+```
 
 **Request Body:**
 ```json
@@ -131,6 +165,11 @@
 ### GET `/api/proxy/status`
 모든 프록시 상태 조회
 
+**curl 예제:**
+```bash
+curl -X GET http://localhost:3001/api/proxy/status
+```
+
 **Response:**
 ```json
 {
@@ -156,6 +195,11 @@
 ### POST `/api/proxy/toggle/:proxyId`
 특정 프록시 IP 토글
 
+**curl 예제:**
+```bash
+curl -X POST http://localhost:3001/api/proxy/toggle/1
+```
+
 **Response:**
 ```json
 {
@@ -169,6 +213,11 @@
 
 ### GET `/api/proxy/toggle-queue/status`
 토글 큐 상태 조회
+
+**curl 예제:**
+```bash
+curl -X GET http://localhost:3001/api/proxy/toggle-queue/status
+```
 
 **Response:**
 ```json
@@ -192,6 +241,15 @@
 
 ### GET `/api/work-slots`
 모든 작업 슬롯 조회
+
+**curl 예제:**
+```bash
+# 모든 슬롯 조회
+curl -X GET http://localhost:3001/api/work-slots
+
+# 특정 사이트 필터링
+curl -X GET "http://localhost:3001/api/work-slots?site=SITE_A&status=active&limit=50"
+```
 
 **Query Parameters:**
 - `site`: 사이트 필터 (SITE_A, SITE_B, SITE_C)
@@ -230,6 +288,21 @@
 ### POST `/api/work-slots`
 새 작업 슬롯 생성
 
+**curl 예제:**
+```bash
+curl -X POST http://localhost:3001/api/work-slots \
+  -H "Content-Type: application/json" \
+  -d '{
+    "keyword": "새 상품 키워드",
+    "code": "NEW_PROD_001",
+    "site": "SITE_A",
+    "start_date": "2025-08-10",
+    "end_date": "2025-09-10",
+    "daily_work_count": 100,
+    "cart_click_enabled": false
+  }'
+```
+
 **Request Body:**
 ```json
 {
@@ -254,8 +327,23 @@
 ### PUT `/api/work-slots/:id`
 작업 슬롯 수정
 
+**curl 예제:**
+```bash
+curl -X PUT http://localhost:3001/api/work-slots/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "daily_work_count": 150,
+    "cart_click_enabled": true
+  }'
+```
+
 ### DELETE `/api/work-slots/:id`
 작업 슬롯 삭제 (소프트 삭제)
+
+**curl 예제:**
+```bash
+curl -X DELETE http://localhost:3001/api/work-slots/1
+```
 
 ---
 
@@ -263,6 +351,11 @@
 
 ### GET `/api/stats/dashboard`
 대시보드 통계
+
+**curl 예제:**
+```bash
+curl -X GET http://localhost:3001/api/stats/dashboard
+```
 
 **Response:**
 ```json
@@ -304,6 +397,15 @@
 ### GET `/api/stats/work-tracking`
 일별 작업 추적 현황
 
+**curl 예제:**
+```bash
+# 오늘 날짜 조회
+curl -X GET http://localhost:3001/api/stats/work-tracking
+
+# 특정 날짜 조회
+curl -X GET "http://localhost:3001/api/stats/work-tracking?date=2025-08-09"
+```
+
 **Query Parameters:**
 - `date`: 조회 날짜 (기본: 오늘)
 
@@ -333,9 +435,29 @@
 ### POST `/webhook/keywords/add`
 외부 사이트에서 키워드 추가
 
-**Headers:**
-```
-Content-Type: application/json
+**curl 예제:**
+```bash
+curl -X POST http://localhost:3001/webhook/keywords/add \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_id": "SITE_A",
+    "auth_key": "trend-monitor-key-2025",
+    "keywords": [
+        {
+            "keyword": "신규 트렌드 상품",
+            "code": "TREND_20250809_001",
+            "metadata": {
+                "category": "패션",
+                "priority": 8,
+                "trend_score": 95
+            },
+            "block_mercury": false,
+            "block_image_cdn": false,
+            "block_img1a_cdn": false,
+            "block_thumbnail_cdn": false
+        }
+    ]
+  }'
 ```
 
 **Request Body:**
@@ -364,7 +486,36 @@ Content-Type: application/json
 ### PUT `/webhook/keywords/update`
 키워드 수정
 
+**curl 예제:**
+```bash
+curl -X PUT http://localhost:3001/webhook/keywords/update \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_id": "SITE_A",
+    "auth_key": "trend-monitor-key-2025",
+    "keyword": "기존 키워드",
+    "updates": {
+        "metadata": {
+            "priority": 10
+        },
+        "block_mercury": true
+    }
+  }'
+```
+
 ### DELETE `/webhook/keywords/delete`
+키워드 삭제
+
+**curl 예제:**
+```bash
+curl -X DELETE http://localhost:3001/webhook/keywords/delete \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_id": "SITE_A",
+    "auth_key": "trend-monitor-key-2025",
+    "keyword": "삭제할 키워드"
+  }'
+```
 키워드 삭제
 
 **Request Body:**
@@ -393,86 +544,43 @@ Content-Type: application/json
 
 ---
 
-## 사용 예시
+## 기본 워크플로우
 
-### Python 클라이언트
-```python
-import requests
-import time
-
-# 1. 작업 할당 요청
-response = requests.post('http://localhost:3001/api/allocate', json={
-    'client_ip': '192.168.1.100',
-    'instance_number': 1,
-    'user_folder_number': 1
-})
-
-if response.status_code == 200:
-    allocation = response.json()
-    allocation_key = allocation['allocation_key']
-    
-    # 2. 작업 수행
-    time.sleep(9)  # 실제 작업 시뮬레이션
-    
-    # 3. 결과 제출
-    result = requests.post('http://localhost:3001/api/submit-result', json={
-        'allocation_key': allocation_key,
-        'status': 'completed',
-        'execution': {
-            'started_at': '2025-08-09T10:00:00Z',
-            'completed_at': '2025-08-09T10:00:09Z',
-            'execution_time_ms': 9000,
-            'instance_number': 1,
-            'user_folder': 1
-        },
-        'result': {
-            'status': 'success',
-            'products_found': 60
-        }
-    })
+### 1. 작업 할당 받기
+```bash
+curl -X POST http://localhost:3001/api/allocate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_ip": "192.168.1.100",
+    "instance_number": 1,
+    "user_folder_number": 1
+  }'
 ```
 
-### Node.js 클라이언트
-```javascript
-const axios = require('axios');
+### 2. 작업 수행 (클라이언트에서 처리)
+- 할당받은 키워드와 프록시를 사용하여 작업 수행
+- 120초 이내에 완료해야 함
 
-async function performWork() {
-    try {
-        // 1. 작업 할당
-        const allocation = await axios.post('http://localhost:3001/api/allocate', {
-            client_ip: '192.168.1.100',
-            instance_number: 1,
-            user_folder_number: 1
-        });
-        
-        const { allocation_key, work, proxy, settings } = allocation.data;
-        
-        // 2. 작업 수행
-        const startTime = Date.now();
-        // ... 실제 작업 로직
-        
-        // 3. 결과 제출
-        await axios.post('http://localhost:3001/api/submit-result', {
-            allocation_key,
-            status: 'completed',
-            execution: {
-                started_at: new Date(startTime).toISOString(),
-                completed_at: new Date().toISOString(),
-                execution_time_ms: Date.now() - startTime
-            },
-            result: {
-                status: 'success',
-                products_found: 60
-            }
-        });
-        
-    } catch (error) {
-        if (error.response?.data?.error === 'NO_WORK_AVAILABLE') {
-            console.log('작업 없음, 대기...');
-            await new Promise(r => setTimeout(r, 30000));
-        }
+### 3. 결과 제출
+```bash
+curl -X POST http://localhost:3001/api/submit-result \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allocation_key": "WA-20250809-a1b2c3d4e5f6",
+    "status": "completed",
+    "execution": {
+        "started_at": "2025-08-09T10:00:00Z",
+        "completed_at": "2025-08-09T10:00:09Z",
+        "execution_time_ms": 9000,
+        "instance_number": 1,
+        "user_folder": 1
+    },
+    "result": {
+        "status": "success",
+        "status_code": 200,
+        "products_found": 60
     }
-}
+  }'
 ```
 
 ---
