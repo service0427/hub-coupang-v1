@@ -105,9 +105,7 @@ router.get('/', async (req, res) => {
             return res.status(404).json({
                 success: false,
                 error: 'NO_WORK_AVAILABLE',
-                message: '현재 할당 가능한 작업이 없습니다',
-                instance: instanceNumber,
-                folder: userFolder
+                message: '현재 할당 가능한 작업이 없습니다'
             });
         }
         
@@ -193,7 +191,6 @@ router.get('/', async (req, res) => {
         res.json({
             success: true,
             allocation_key: allocationKey,
-            instance: instanceNumber,
             folder: userFolder,  // 서버가 자동 할당한 폴더
             work: {
                 keyword: workSlot.keyword,
@@ -267,7 +264,6 @@ router.get('/:allocation_key', async (req, res) => {
             allocation: {
                 key: allocation.allocation_key,
                 status: allocation.status,
-                instance: allocation.reported_instance,
                 folder: allocation.reported_user_folder,
                 allocated_at: allocation.allocated_at,
                 expires_at: allocation.expires_at,

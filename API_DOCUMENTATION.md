@@ -41,7 +41,6 @@ instance: 인스턴스 번호 (선택적, 기본값: 1)
 {
     "success": true,
     "allocation_key": "WA-20250809-a1b2c3d4e5f6",
-    "instance": 1,
     "folder": 3,  // 서버가 자동 할당한 폴더 번호 (1~30 순환)
     "work": {
         "keyword": "무선이어폰",
