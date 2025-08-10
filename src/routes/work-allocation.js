@@ -3,15 +3,20 @@ const router = express.Router();
 const { getPool } = require('../db/pool');
 const crypto = require('crypto');
 
-// GET /api/allocate-work - 작업 할당 요청
-router.get('/', async (req, res) => {
+// POST /api/allocate-work - 작업 할당 요청 (새 형식)
+router.post('/', async (req, res) => {
     const pool = getPool();
     const client = await pool.connect();
     
     // 클라이언트 정보
-    const clientIp = req.headers['x-client-ip'] || req.ip;
-    const instanceNumber = parseInt(req.headers['x-instance-number']) || 1;
-    const userFolder = parseInt(req.headers['x-user-folder']) || 1;
+    const { client_ip: clientIp, instance_number: instanceNumber = 1, user_folder_number: userFolder = 1 } = req.body;
+    
+    if (!clientIp) {
+        return res.status(400).json({
+            success: false,
+            error: 'client_ip is required'
+        });
+    }
     
     try {
         await client.query('BEGIN');
@@ -28,24 +33,38 @@ router.get('/', async (req, res) => {
                 observed_max_user_folder = GREATEST(v1_hub_clients.observed_max_user_folder, $3)
         `, [clientIp, instanceNumber, userFolder]);
         
-        // 2. 활성 work_slot 중 할당 가능한 것 찾기
-        const workSlotResult = await client.query(`
-            SELECT ws.*, dwt.allocated_count, dwt.target_count
+        // 2. 할당 가능한 작업 찾기 (오늘 날짜, 목표 미달성)
+        const workResult = await client.query(`
+            SELECT ws.*, dwt.allocated_count, dwt.completed_count
             FROM v1_hub_work_slots ws
-            JOIN v1_hub_daily_work_tracking dwt 
-                ON ws.id = dwt.work_slot_id 
-                AND dwt.work_date = CURRENT_DATE
-            WHERE CURRENT_DATE BETWEEN ws.start_date AND ws.end_date
-                AND ws.is_active = true
-                AND dwt.allocated_count < dwt.target_count
+            INNER JOIN v1_hub_daily_work_tracking dwt ON dwt.work_slot_id = ws.id
+            WHERE dwt.work_date = CURRENT_DATE
+            AND ws.status = 'active'
+            AND ws.start_date <= CURRENT_DATE
+            AND ws.end_date >= CURRENT_DATE
+            AND dwt.allocated_count < ws.daily_work_count
+            AND NOT EXISTS (
+                SELECT 1 FROM v1_hub_work_allocations wa
+                WHERE wa.work_slot_id = ws.id
+                AND wa.client_ip = $1
+                AND wa.reported_instance = $2
+                AND wa.reported_user_folder = $3
+                AND wa.work_date = CURRENT_DATE
+                AND wa.status IN ('allocated', 'completed')
+            )
             ORDER BY 
-                (dwt.allocated_count::float / dwt.target_count) ASC,
-                ws.id ASC
+                (dwt.allocated_count::float / NULLIF(ws.daily_work_count, 0)) ASC,
+                CASE 
+                    WHEN ws.extra_config->>'priority' ~ '^[0-9]+$' 
+                    THEN (ws.extra_config->>'priority')::int 
+                    ELSE 5 
+                END DESC,
+                RANDOM()
             LIMIT 1
-            FOR UPDATE
-        `);
+            FOR UPDATE OF ws
+        `, [clientIp, instanceNumber, userFolder]);
         
-        if (workSlotResult.rows.length === 0) {
+        if (workResult.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({
                 success: false,
@@ -54,16 +73,14 @@ router.get('/', async (req, res) => {
             });
         }
         
-        const workSlot = workSlotResult.rows[0];
+        const workSlot = workResult.rows[0];
         
-        // 3. 사용 가능한 프록시 찾기 (use_count < 20, 활성 상태)
+        // 3. 사용 가능한 프록시 찾기
         const proxyResult = await client.query(`
-            SELECT p.*, pim.current_ip as external_ip
-            FROM v1_hub_proxies p
-            JOIN v1_hub_proxy_ip_mapping pim ON p.id = pim.proxy_id
-            WHERE p.use_count < 20
-                AND p.status = 'active'
-            ORDER BY p.use_count ASC, p.id ASC
+            SELECT * FROM v1_hub_proxies
+            WHERE status = 'active'
+            AND use_count < 20
+            ORDER BY use_count ASC, last_used_at ASC NULLS FIRST
             LIMIT 1
             FOR UPDATE
         `);
@@ -72,30 +89,25 @@ router.get('/', async (req, res) => {
             await client.query('ROLLBACK');
             return res.status(503).json({
                 success: false,
-                error: 'PROXY_NOT_AVAILABLE',
+                error: 'NO_PROXY_AVAILABLE',
                 message: '사용 가능한 프록시가 없습니다'
             });
         }
         
         const proxy = proxyResult.rows[0];
         
-        // 4. allocation_key 생성
-        const allocationKey = `WA-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${crypto.randomBytes(6).toString('hex')}`;
+        // 4. 할당 키 생성
+        const allocationKey = `WA-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomBytes(6).toString('hex')}`;
         
-        // 5. work_slot의 현재 상태를 스냅샷으로 저장
+        // 5. 작업 스냅샷 생성
         const workSlotSnapshot = {
-            id: workSlot.id,
             keyword: workSlot.keyword,
             code: workSlot.code,
-            start_date: workSlot.start_date,
-            end_date: workSlot.end_date,
-            extra_config: workSlot.extra_config || {},
             cart_click_enabled: workSlot.cart_click_enabled,
-            is_active: workSlot.is_active,
-            snapshot_at: new Date().toISOString()
+            extra_config: workSlot.extra_config
         };
         
-        // 6. 작업 할당 생성 (120초 타임아웃 설정, 스냅샷 포함)
+        // 6. 할당 레코드 생성
         const allocationResult = await client.query(`
             INSERT INTO v1_hub_work_allocations (
                 work_slot_id, work_date, proxy_id, 
@@ -139,7 +151,7 @@ router.get('/', async (req, res) => {
         
         console.log(`✅ 작업 할당: ${allocationKey} | 키워드: ${workSlot.keyword} | 프록시: ${proxy.server_ip}:${proxy.port} (${proxy.use_count + 1}/20)`);
         
-        // 응답
+        // 응답 (새 형식)
         res.json({
             success: true,
             allocation_key: allocationKey,
@@ -176,7 +188,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET /api/allocations/:allocation_key - 할당 상태 확인
+// GET /api/allocate-work/:allocation_key - 할당 상태 조회
 router.get('/:allocation_key', async (req, res) => {
     const pool = getPool();
     const { allocation_key } = req.params;
@@ -184,30 +196,45 @@ router.get('/:allocation_key', async (req, res) => {
     try {
         const result = await pool.query(`
             SELECT 
-                allocation_key as key,
-                status,
-                allocated_at,
-                expires_at,
-                completed_at
-            FROM v1_hub_work_allocations
-            WHERE allocation_key = $1
+                wa.*,
+                ws.keyword, ws.code,
+                p.server_ip, p.port, p.external_ip
+            FROM v1_hub_work_allocations wa
+            JOIN v1_hub_work_slots ws ON ws.id = wa.work_slot_id
+            JOIN v1_hub_proxies p ON p.id = wa.proxy_id
+            WHERE wa.allocation_key = $1
         `, [allocation_key]);
         
         if (result.rows.length === 0) {
             return res.status(404).json({
                 success: false,
-                error: 'ALLOCATION_NOT_FOUND',
-                message: '할당을 찾을 수 없습니다'
+                error: 'ALLOCATION_NOT_FOUND'
             });
         }
         
+        const allocation = result.rows[0];
+        
         res.json({
             success: true,
-            allocation: result.rows[0]
+            allocation: {
+                key: allocation.allocation_key,
+                status: allocation.status,
+                allocated_at: allocation.allocated_at,
+                expires_at: allocation.expires_at,
+                completed_at: allocation.completed_at,
+                work: {
+                    keyword: allocation.keyword,
+                    code: allocation.code
+                },
+                proxy: {
+                    url: `socks5://${allocation.server_ip}:${allocation.port}`,
+                    external_ip: allocation.external_ip
+                }
+            }
         });
         
     } catch (error) {
-        console.error('❌ 할당 조회 오류:', error.message);
+        console.error('할당 조회 오류:', error.message);
         res.status(500).json({
             success: false,
             error: error.message

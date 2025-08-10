@@ -50,13 +50,21 @@ router.post('/', async (req, res) => {
         }
         
         // 2. work_results 저장 (applied_settings를 JSONB로)
-        const appliedSettingsJson = {
+        const appliedSettingsJson = applied_settings ? {
             cart_click_enabled: applied_settings.cart_click_enabled || false,
             block_settings: {
                 block_mercury: applied_settings.block_mercury || false,
                 block_image_cdn: applied_settings.block_image_cdn || false,
                 block_img1a_cdn: applied_settings.block_img1a_cdn || false,
                 block_thumbnail_cdn: applied_settings.block_thumbnail_cdn || false
+            }
+        } : {
+            cart_click_enabled: false,
+            block_settings: {
+                block_mercury: false,
+                block_image_cdn: false,
+                block_img1a_cdn: false,
+                block_thumbnail_cdn: false
             }
         };
         
@@ -83,7 +91,7 @@ router.post('/', async (req, res) => {
             allocation.id,
             execution.started_at, execution.completed_at, execution.execution_time_ms,
             allocation.client_ip, execution.instance_number, execution.user_folder,
-            applied_settings.cart_click_enabled, JSON.stringify(appliedSettingsJson),
+            appliedSettingsJson.cart_click_enabled, JSON.stringify(appliedSettingsJson),
             result.status, result.status_code, result.current_page,
             result.status === 'blocked', block_info?.block_type, block_info ? JSON.stringify(block_info) : null,
             performance.page_load_time_ms, performance.dom_ready_time_ms,

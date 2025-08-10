@@ -3,7 +3,7 @@
 ## 개요
 쿠팡 작업 관리를 위한 중앙 집중식 허브 서버 API
 
-- **Base URL**: `http://localhost:3001`
+- **Base URL**: `http://mkt.techb.kr:3001`
 - **인증**: 현재 없음 (추후 추가 예정)
 - **응답 형식**: JSON
 
@@ -19,12 +19,12 @@
 
 ## 1. 작업 할당 API
 
-### POST `/api/allocate`
+### POST `/api/allocate-work`
 작업(키워드+프록시) 할당 요청
 
 **curl 예제:**
 ```bash
-curl -X POST http://localhost:3001/api/allocate \
+curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
   -H "Content-Type: application/json" \
   -d '{
     "client_ip": "192.168.1.100",
@@ -85,7 +85,7 @@ curl -X POST http://localhost:3001/api/allocate \
 
 **curl 예제:**
 ```bash
-curl -X POST http://localhost:3001/api/submit-result \
+curl -X POST http://mkt.techb.kr:3001/api/submit-result \
   -H "Content-Type: application/json" \
   -d '{
     "allocation_key": "WA-20250809-a1b2c3d4e5f6",
@@ -167,7 +167,7 @@ curl -X POST http://localhost:3001/api/submit-result \
 
 **curl 예제:**
 ```bash
-curl -X GET http://localhost:3001/api/proxy/status
+curl -X GET http://mkt.techb.kr:3001/api/proxy/status
 ```
 
 **Response:**
@@ -197,7 +197,7 @@ curl -X GET http://localhost:3001/api/proxy/status
 
 **curl 예제:**
 ```bash
-curl -X POST http://localhost:3001/api/proxy/toggle/1
+curl -X POST http://mkt.techb.kr:3001/api/proxy/toggle/1
 ```
 
 **Response:**
@@ -216,7 +216,7 @@ curl -X POST http://localhost:3001/api/proxy/toggle/1
 
 **curl 예제:**
 ```bash
-curl -X GET http://localhost:3001/api/proxy/toggle-queue/status
+curl -X GET http://mkt.techb.kr:3001/api/proxy/toggle-queue/status
 ```
 
 **Response:**
@@ -245,10 +245,10 @@ curl -X GET http://localhost:3001/api/proxy/toggle-queue/status
 **curl 예제:**
 ```bash
 # 모든 슬롯 조회
-curl -X GET http://localhost:3001/api/work-slots
+curl -X GET http://mkt.techb.kr:3001/api/work-slots
 
 # 특정 사이트 필터링
-curl -X GET "http://localhost:3001/api/work-slots?site=SITE_A&status=active&limit=50"
+curl -X GET "http://mkt.techb.kr:3001/api/work-slots?site=SITE_A&status=active&limit=50"
 ```
 
 **Query Parameters:**
@@ -290,7 +290,7 @@ curl -X GET "http://localhost:3001/api/work-slots?site=SITE_A&status=active&limi
 
 **curl 예제:**
 ```bash
-curl -X POST http://localhost:3001/api/work-slots \
+curl -X POST http://mkt.techb.kr:3001/api/work-slots \
   -H "Content-Type: application/json" \
   -d '{
     "keyword": "새 상품 키워드",
@@ -329,7 +329,7 @@ curl -X POST http://localhost:3001/api/work-slots \
 
 **curl 예제:**
 ```bash
-curl -X PUT http://localhost:3001/api/work-slots/1 \
+curl -X PUT http://mkt.techb.kr:3001/api/work-slots/1 \
   -H "Content-Type: application/json" \
   -d '{
     "daily_work_count": 150,
@@ -342,7 +342,7 @@ curl -X PUT http://localhost:3001/api/work-slots/1 \
 
 **curl 예제:**
 ```bash
-curl -X DELETE http://localhost:3001/api/work-slots/1
+curl -X DELETE http://mkt.techb.kr:3001/api/work-slots/1
 ```
 
 ---
@@ -354,7 +354,7 @@ curl -X DELETE http://localhost:3001/api/work-slots/1
 
 **curl 예제:**
 ```bash
-curl -X GET http://localhost:3001/api/stats/dashboard
+curl -X GET http://mkt.techb.kr:3001/api/stats/dashboard
 ```
 
 **Response:**
@@ -400,10 +400,10 @@ curl -X GET http://localhost:3001/api/stats/dashboard
 **curl 예제:**
 ```bash
 # 오늘 날짜 조회
-curl -X GET http://localhost:3001/api/stats/work-tracking
+curl -X GET http://mkt.techb.kr:3001/api/stats/work-tracking
 
 # 특정 날짜 조회
-curl -X GET "http://localhost:3001/api/stats/work-tracking?date=2025-08-09"
+curl -X GET "http://mkt.techb.kr:3001/api/stats/work-tracking?date=2025-08-09"
 ```
 
 **Query Parameters:**
@@ -437,7 +437,7 @@ curl -X GET "http://localhost:3001/api/stats/work-tracking?date=2025-08-09"
 
 **curl 예제:**
 ```bash
-curl -X POST http://localhost:3001/webhook/keywords/add \
+curl -X POST http://mkt.techb.kr:3001/webhook/keywords/add \
   -H "Content-Type: application/json" \
   -d '{
     "site_id": "SITE_A",
@@ -488,7 +488,7 @@ curl -X POST http://localhost:3001/webhook/keywords/add \
 
 **curl 예제:**
 ```bash
-curl -X PUT http://localhost:3001/webhook/keywords/update \
+curl -X PUT http://mkt.techb.kr:3001/webhook/keywords/update \
   -H "Content-Type: application/json" \
   -d '{
     "site_id": "SITE_A",
@@ -508,7 +508,7 @@ curl -X PUT http://localhost:3001/webhook/keywords/update \
 
 **curl 예제:**
 ```bash
-curl -X DELETE http://localhost:3001/webhook/keywords/delete \
+curl -X DELETE http://mkt.techb.kr:3001/webhook/keywords/delete \
   -H "Content-Type: application/json" \
   -d '{
     "site_id": "SITE_A",
@@ -548,7 +548,7 @@ curl -X DELETE http://localhost:3001/webhook/keywords/delete \
 
 ### 1. 작업 할당 받기
 ```bash
-curl -X POST http://localhost:3001/api/allocate \
+curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
   -H "Content-Type: application/json" \
   -d '{
     "client_ip": "192.168.1.100",
@@ -563,7 +563,7 @@ curl -X POST http://localhost:3001/api/allocate \
 
 ### 3. 결과 제출
 ```bash
-curl -X POST http://localhost:3001/api/submit-result \
+curl -X POST http://mkt.techb.kr:3001/api/submit-result \
   -H "Content-Type: application/json" \
   -d '{
     "allocation_key": "WA-20250809-a1b2c3d4e5f6",
