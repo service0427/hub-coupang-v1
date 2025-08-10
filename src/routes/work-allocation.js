@@ -8,15 +8,16 @@ router.post('/', async (req, res) => {
     const pool = getPool();
     const client = await pool.connect();
     
-    // 클라이언트 정보
-    const { client_ip: clientIp, instance_number: instanceNumber = 1, user_folder_number: userFolder = 1 } = req.body;
+    // 클라이언트 정보 - IP는 자동 감지
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || 
+                     req.connection.remoteAddress || 
+                     req.socket.remoteAddress || 
+                     req.ip;
     
-    if (!clientIp) {
-        return res.status(400).json({
-            success: false,
-            error: 'client_ip is required'
-        });
-    }
+    // IPv6 형식 제거
+    const cleanIp = clientIp.startsWith('::ffff:') ? clientIp.substring(7) : clientIp;
+    
+    const { instance_number: instanceNumber = 1, user_folder_number: userFolder = 1 } = req.body;
     
     try {
         await client.query('BEGIN');
@@ -31,7 +32,7 @@ router.post('/', async (req, res) => {
                 total_requests = v1_hub_clients.total_requests + 1,
                 observed_max_instance = GREATEST(v1_hub_clients.observed_max_instance, $2),
                 observed_max_user_folder = GREATEST(v1_hub_clients.observed_max_user_folder, $3)
-        `, [clientIp, instanceNumber, userFolder]);
+        `, [cleanIp, instanceNumber, userFolder]);
         
         // 2. 할당 가능한 작업 찾기 (오늘 날짜, 목표 미달성)
         const workResult = await client.query(`
@@ -62,7 +63,7 @@ router.post('/', async (req, res) => {
                 RANDOM()
             LIMIT 1
             FOR UPDATE OF ws
-        `, [clientIp, instanceNumber, userFolder]);
+        `, [cleanIp, instanceNumber, userFolder]);
         
         if (workResult.rows.length === 0) {
             await client.query('ROLLBACK');
@@ -125,7 +126,7 @@ router.post('/', async (req, res) => {
         `, [
             workSlot.id, proxy.id,
             proxy.server_ip, proxy.port,
-            clientIp, instanceNumber, userFolder,
+            cleanIp, instanceNumber, userFolder,
             allocationKey,
             JSON.stringify(workSlotSnapshot)
         ]);

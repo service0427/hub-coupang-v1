@@ -27,7 +27,6 @@
 curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
   -H "Content-Type: application/json" \
   -d '{
-    "client_ip": "192.168.1.100",
     "instance_number": 1,
     "user_folder_number": 1
   }'
@@ -36,9 +35,8 @@ curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
 **Request Body:**
 ```json
 {
-    "client_ip": "192.168.1.100",
-    "instance_number": 1,
-    "user_folder_number": 1
+    "instance_number": 1,      // 선택적, 기본값: 1
+    "user_folder_number": 1     // 선택적, 기본값: 1
 }
 ```
 
@@ -548,10 +546,15 @@ curl -X DELETE http://mkt.techb.kr:3001/webhook/keywords/delete \
 
 ### 1. 작업 할당 받기
 ```bash
+# 최소 요청 (모든 파라미터 기본값)
+curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# 또는 instance와 user_folder 지정
 curl -X POST http://mkt.techb.kr:3001/api/allocate-work \
   -H "Content-Type: application/json" \
   -d '{
-    "client_ip": "192.168.1.100",
     "instance_number": 1,
     "user_folder_number": 1
   }'
